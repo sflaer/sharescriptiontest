@@ -16,6 +16,8 @@ set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/sflaer/sharescriptiontest.git}"
 APP_USER="sharescription"
+# Домашний каталог для npm (кэш, временные файлы); без него npm падает с EACCES на mkdir /home/sharescription
+APP_HOME="/home/sharescription"
 APP_DIR="/opt/sharescription"
 DATA_DIR="/var/lib/sharescription"
 ENV_FILE="/etc/sharescription.env"
@@ -39,6 +41,8 @@ echo "Node: $(node -v)  npm: $(npm -v)"
 if ! id -u "$APP_USER" &>/dev/null; then
   useradd --system --shell /usr/sbin/nologin "$APP_USER"
 fi
+mkdir -p "$APP_HOME"
+chown "$APP_USER:$APP_USER" "$APP_HOME"
 
 # Git 2.35+: иначе «detected dubious ownership» при chown репозитория на sharescription
 if ! git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$APP_DIR"; then
@@ -63,14 +67,21 @@ elif [[ -d "$APP_DIR" ]]; then
   exit 1
 else
   echo "Клонирование в $APP_DIR ..."
-  sudo -u "$APP_USER" git clone "$REPO_URL" "$APP_DIR"
+  sudo -u "$APP_USER" env HOME="$APP_HOME" git clone "$REPO_URL" "$APP_DIR"
 fi
 
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
+# Сломанный node_modules после смены владельца / прерванного npm ci
+if [[ -d "$APP_DIR/node_modules" ]]; then
+  echo "Удаление $APP_DIR/node_modules для чистой установки..."
+  rm -rf "$APP_DIR/node_modules"
+  chown -R "$APP_USER:$APP_USER" "$APP_DIR"
+fi
+
 # Не используем NODE_ENV=production при установке — нужны devDependencies (tsx, prisma CLI).
 echo "npm ci ..."
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && npm ci"
+sudo -u "$APP_USER" env HOME="$APP_HOME" bash -lc "cd '$APP_DIR' && npm ci"
 
 if [[ ! -f "$ENV_FILE" ]]; then
   cat >"$ENV_FILE" <<EOF
@@ -90,8 +101,8 @@ set -a
 source "$ENV_FILE"
 set +a
 
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && npx prisma migrate deploy"
-sudo -u "$APP_USER" bash -lc "cd '$APP_DIR' && npx prisma db seed" || true
+sudo -u "$APP_USER" env HOME="$APP_HOME" bash -lc "cd '$APP_DIR' && npx prisma migrate deploy"
+sudo -u "$APP_USER" env HOME="$APP_HOME" bash -lc "cd '$APP_DIR' && npx prisma db seed" || true
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ ! -f "$SCRIPT_DIR/sharescription.service" ]]; then

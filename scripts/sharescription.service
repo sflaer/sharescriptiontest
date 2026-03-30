@@ -8,6 +8,7 @@ Type=simple
 User=sharescription
 Group=sharescription
 WorkingDirectory=/opt/sharescription
+Environment=HOME=/home/sharescription
 EnvironmentFile=-/etc/sharescription.env
 
 # Миграции перед стартом (SQLite на томе /var/lib/sharescription)
