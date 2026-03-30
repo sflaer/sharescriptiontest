@@ -40,6 +40,11 @@ if ! id -u "$APP_USER" &>/dev/null; then
   useradd --system --shell /usr/sbin/nologin "$APP_USER"
 fi
 
+# Git 2.35+: иначе «detected dubious ownership» при chown репозитория на sharescription
+if ! git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$APP_DIR"; then
+  git config --system --add safe.directory "$APP_DIR"
+fi
+
 mkdir -p "$DATA_DIR"
 chown "$APP_USER:$APP_USER" "$DATA_DIR"
 mkdir -p /opt
