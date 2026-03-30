@@ -194,6 +194,7 @@ bash scripts/deploy-vps.sh
 | Симптом | Что проверить |
 |---------|----------------|
 | `fatal: detected dubious ownership in repository` | Один раз от root: `git config --system --add safe.directory /opt/sharescription` затем снова `bash scripts/deploy-vps.sh`. В новых версиях скрипта это делается автоматически. |
+| `cannot open '.git/FETCH_HEAD': Permission denied` | Часть `.git` владела root после ручного `git pull`. Выполните: `chown -R sharescription:sharescription /opt/sharescription`, обновите скрипт (`git pull`), снова `bash scripts/deploy-vps.sh`. В актуальном скрипте `git pull` выполняется от root. |
 | `systemctl status` — failed | `journalctl -u sharescription -n 80` |
 | Пустой / неверный `BOT_TOKEN` | `/etc/sharescription.env`, перезапуск сервиса |
 | `curl` снаружи не работает | ufw, облачный фаервол, верный ли IP и порт |
