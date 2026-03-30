@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  telegramId  BigInt   @unique
+  timezone    String   @default("UTC")
+  firstName   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  paymentCards  PaymentCard[]
+  categories    Category[]
+  subscriptions Subscription[]
+}
+
+model PaymentCard {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+/// Системные: userId = null и slug задан; свои: userId задан
+model Category {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug      String?
+  name      String
+  createdAt DateTime @default(now())
+
+  subscriptions Subscription[]
+
+  @@unique([userId, name])
+  @@unique([slug])
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                 String
+  amountCents          Int
+  currency             String
+  intervalMonths       Int
+  nextChargeOn         String
+  reminderDaysBefore   Int?
+  categoryId           String?
+  category             Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  paymentCardId        String?
+  paymentCard          PaymentCard? @relation(fields: [paymentCardId], references: [id], onDelete: SetNull)
+  slotCount            Int?
+  occupiedNames        String     @default("[]")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  reminderLogs ReminderLog[]
+}
+
+model ReminderLog {
+  id             String   @id @default(cuid())
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  forChargeOn    String
+  createdAt      DateTime @default(now())
+
+  @@unique([subscriptionId, forChargeOn])
+}
