@@ -51,11 +51,12 @@ mkdir -p /opt
 chown root:root /opt
 
 if [[ -d "$APP_DIR/.git" ]]; then
-  echo "Обновление $APP_DIR (git pull)..."
-  sudo -u "$APP_USER" git -C "$APP_DIR" pull --ff-only || {
+  echo "Обновление $APP_DIR (git pull от root, затем chown)..."
+  # Ручной git pull под root мог оставить .git с владельцем root — sharescription тогда не пишет в FETCH_HEAD
+  git -C "$APP_DIR" pull --ff-only || {
     echo "pull не удался, пробуем origin/main..."
-    sudo -u "$APP_USER" git -C "$APP_DIR" fetch origin
-    sudo -u "$APP_USER" git -C "$APP_DIR" reset --hard origin/main
+    git -C "$APP_DIR" fetch origin
+    git -C "$APP_DIR" reset --hard origin/main
   }
 elif [[ -d "$APP_DIR" ]]; then
   echo "Каталог $APP_DIR есть, но не git-репозиторий. Удалите его вручную или клонируйте в другое место."
