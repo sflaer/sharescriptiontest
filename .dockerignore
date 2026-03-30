@@ -1,0 +1,11 @@
+node_modules
+web
+.git
+.env
+.env.*
+*.md
+dev.db
+dev.db-journal
+prisma/dev.db
+dist
+*.log

@@ -1,0 +1,23 @@
+[Unit]
+Description=Sharescription API + Telegram bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sharescription
+Group=sharescription
+WorkingDirectory=/opt/sharescription
+EnvironmentFile=-/etc/sharescription.env
+
+# Миграции перед стартом (SQLite на томе /var/lib/sharescription)
+ExecStartPre=/usr/bin/env bash -lc 'cd /opt/sharescription && npx prisma migrate deploy'
+ExecStart=/usr/bin/env npx tsx src/index.ts
+Restart=always
+RestartSec=12
+
+# Лимиты (при необходимости увеличьте)
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
