@@ -44,8 +44,9 @@ async function parseJson<T>(r: Response): Promise<T> {
     throw new Error(
       [
         "Сервер вернул HTML вместо JSON — запрос не дошёл до API.",
-        "Локально: в одном терминале в корне проекта npm run dev (порт 3001), в другом cd web && npm run dev.",
-        "На Vercel: в настройках проекта задайте переменную VITE_API_URL = https://ваш-бэкенд (HTTPS, без / в конце) и пересоберите.",
+        "Локально: в корне npm run dev (3001), в web npm run dev.",
+        "Vercel без HTTPS на VPS: очистите VITE_API_URL, задайте BACKEND_HTTP_URL=http://IP:порт и Redeploy.",
+        "Или VITE_API_URL=https://ваш-API (HTTPS, без / в конце) и пересоберите.",
       ].join(" "),
     );
   }
