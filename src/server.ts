@@ -5,6 +5,7 @@ import { registerApi } from "./routes/api.js";
 export async function buildServer(botToken: string) {
   const app = Fastify({ logger: true });
   await app.register(cors, { origin: true });
+  app.get("/api/health", async () => ({ ok: true }));
   await registerApi(app, { botToken });
   return app;
 }

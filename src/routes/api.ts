@@ -34,42 +34,26 @@ export async function registerApi(
   app: FastifyInstance,
   opts: { botToken: string },
 ) {
-  app.addHook("preHandler", async (req, reply) => {
-    const path = req.url.split("?")[0] ?? "";
-    if (path === "/api/health" || !path.startsWith("/api")) return;
-    const auth = req.headers.authorization;
-    if (!auth?.startsWith("tma ")) {
-      return reply.code(401).send({ error: "Требуется авторизация Telegram" });
-    }
-    const initData = auth.slice(4);
-    if (!validateTelegramWebAppData(initData, opts.botToken)) {
-      return reply.code(401).send({ error: "Неверные данные initData" });
-    }
-    const parsed = parseUserFromInitData(initData);
-    if (!parsed) {
-      return reply.code(401).send({ error: "Нет пользователя в initData" });
-    }
-    const user = await getOrCreateUser(parsed.id, parsed.firstName);
-    req.userId = user.id;
-  });
+  await app.register(async function protectedApi(fastify) {
+    fastify.addHook("preHandler", async (req, reply) => {
+      const auth = req.headers.authorization;
+      if (!auth?.startsWith("tma ")) {
+        return reply.code(401).send({ error: "Требуется авторизация Telegram" });
+      }
+      const initData = auth.slice(4);
+      if (!validateTelegramWebAppData(initData, opts.botToken)) {
+        return reply.code(401).send({ error: "Неверные данные initData" });
+      }
+      const parsed = parseUserFromInitData(initData);
+      if (!parsed) {
+        return reply.code(401).send({ error: "Нет пользователя в initData" });
+      }
+      const user = await getOrCreateUser(parsed.id, parsed.firstName);
+      req.userId = user.id;
+    });
 
-  app.get("/api/health", async () => ({ ok: true }));
-
-  app.get("/api/me", async (req) => {
-    const userId = req.userId!;
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    return {
-      id: user.id,
-      telegramId: user.telegramId.toString(),
-      timezone: user.timezone,
-      firstName: user.firstName,
-    };
-  });
-
-  app.patch<{ Body: { timezone?: string } }>("/api/me", async (req) => {
-    const userId = req.userId!;
-    const tz = req.body?.timezone?.trim();
-    if (!tz) {
+    fastify.get("/api/me", async (req) => {
+      const userId = req.userId!;
       const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
       return {
         id: user.id,
@@ -77,20 +61,33 @@ export async function registerApi(
         timezone: user.timezone,
         firstName: user.firstName,
       };
-    }
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: { timezone: tz },
     });
-    return {
-      id: user.id,
-      telegramId: user.telegramId.toString(),
-      timezone: user.timezone,
-      firstName: user.firstName,
-    };
-  });
 
-  app.get("/api/categories", async (req) => {
+    fastify.patch<{ Body: { timezone?: string } }>("/api/me", async (req) => {
+      const userId = req.userId!;
+      const tz = req.body?.timezone?.trim();
+      if (!tz) {
+        const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+        return {
+          id: user.id,
+          telegramId: user.telegramId.toString(),
+          timezone: user.timezone,
+          firstName: user.firstName,
+        };
+      }
+      const user = await prisma.user.update({
+        where: { id: userId },
+        data: { timezone: tz },
+      });
+      return {
+        id: user.id,
+        telegramId: user.telegramId.toString(),
+        timezone: user.timezone,
+        firstName: user.firstName,
+      };
+    });
+
+    fastify.get("/api/categories", async (req) => {
     const userId = req.userId!;
     const system = await prisma.category.findMany({
       where: { userId: null },
@@ -110,7 +107,7 @@ export async function registerApi(
     };
   });
 
-  app.post<{ Body: { name?: string } }>("/api/categories", async (req, reply) => {
+  fastify.post<{ Body: { name?: string } }>("/api/categories", async (req, reply) => {
     const userId = req.userId!;
     const name = req.body?.name?.trim();
     if (!name) {
@@ -122,7 +119,7 @@ export async function registerApi(
     return { id: cat.id, name: cat.name };
   });
 
-  app.delete<{ Params: { id: string } }>(
+  fastify.delete<{ Params: { id: string } }>(
     "/api/categories/:id",
     async (req, reply) => {
       const userId = req.userId!;
@@ -135,7 +132,7 @@ export async function registerApi(
     },
   );
 
-  app.get("/api/payment-cards", async (req) => {
+  fastify.get("/api/payment-cards", async (req) => {
     const userId = req.userId!;
     const cards = await prisma.paymentCard.findMany({
       where: { userId },
@@ -148,7 +145,7 @@ export async function registerApi(
     }));
   });
 
-  app.post<{
+  fastify.post<{
     Body: { name?: string; color?: string };
   }>("/api/payment-cards", async (req, reply) => {
     const userId = req.userId!;
@@ -161,7 +158,7 @@ export async function registerApi(
     return { id: card.id, name: card.name, color: card.color };
   });
 
-  app.patch<{
+  fastify.patch<{
     Params: { id: string };
     Body: { name?: string; color?: string };
   }>("/api/payment-cards/:id", async (req, reply) => {
@@ -184,7 +181,7 @@ export async function registerApi(
     };
   });
 
-  app.delete<{ Params: { id: string } }>(
+  fastify.delete<{ Params: { id: string } }>(
     "/api/payment-cards/:id",
     async (req, reply) => {
       const userId = req.userId!;
@@ -197,7 +194,7 @@ export async function registerApi(
     },
   );
 
-  app.get("/api/subscriptions", async (req) => {
+  fastify.get("/api/subscriptions", async (req) => {
     const userId = req.userId!;
     const rows = await prisma.subscription.findMany({
       where: { userId },
@@ -223,7 +220,7 @@ export async function registerApi(
     }));
   });
 
-  app.post<{
+  fastify.post<{
     Body: {
       name?: string;
       amountCents?: number;
@@ -294,7 +291,7 @@ export async function registerApi(
     return mapSubscription(sub);
   });
 
-  app.patch<{
+  fastify.patch<{
     Params: { id: string };
     Body: Partial<{
       name: string;
@@ -354,7 +351,7 @@ export async function registerApi(
     return mapSubscription(sub);
   });
 
-  app.delete<{ Params: { id: string } }>(
+  fastify.delete<{ Params: { id: string } }>(
     "/api/subscriptions/:id",
     async (req, reply) => {
       const userId = req.userId!;
@@ -367,7 +364,7 @@ export async function registerApi(
     },
   );
 
-  app.post<{ Params: { id: string } }>(
+  fastify.post<{ Params: { id: string } }>(
     "/api/subscriptions/:id/confirm-payment",
     async (req, reply) => {
       const userId = req.userId!;
@@ -387,6 +384,7 @@ export async function registerApi(
       return mapSubscription(sub);
     },
   );
+  });
 }
 
 function mapSubscription(s: {
