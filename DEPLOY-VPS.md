@@ -196,6 +196,7 @@ bash scripts/deploy-vps.sh
 | `fatal: detected dubious ownership in repository` | Один раз от root: `git config --system --add safe.directory /opt/sharescription` затем снова `bash scripts/deploy-vps.sh`. В новых версиях скрипта это делается автоматически. |
 | `cannot open '.git/FETCH_HEAD': Permission denied` | Часть `.git` владела root после ручного `git pull`. Выполните: `chown -R sharescription:sharescription /opt/sharescription`, обновите скрипт (`git pull`), снова `bash scripts/deploy-vps.sh`. В актуальном скрипте `git pull` выполняется от root. |
 | `EACCES` на `mkdir '/home/sharescription'`, сломанный `node_modules` | У пользователя не было HOME. Выполните: `mkdir -p /home/sharescription && chown sharescription:sharescription /home/sharescription`, затем `rm -rf /opt/sharescription/node_modules`, `git pull`, снова `bash scripts/deploy-vps.sh`. В новых версиях скрипта это делается автоматически. |
+| Prisma `P1012` / `Environment variable not found: DATABASE_URL` | `sudo` не передаёт переменные в `npx prisma`. В `/etc/sharescription.env` должна быть строка `DATABASE_URL=file:/var/lib/sharescription/prod.db`. Обновите скрипт (`git pull`) и снова `bash scripts/deploy-vps.sh` — в новых версиях `DATABASE_URL` передаётся явно. |
 | `systemctl status` — failed | `journalctl -u sharescription -n 80` |
 | Пустой / неверный `BOT_TOKEN` | `/etc/sharescription.env`, перезапуск сервиса |
 | `curl` снаружи не работает | ufw, облачный фаервол, верный ли IP и порт |

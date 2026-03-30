@@ -101,8 +101,18 @@ set -a
 source "$ENV_FILE"
 set +a
 
-sudo -u "$APP_USER" env HOME="$APP_HOME" bash -lc "cd '$APP_DIR' && npx prisma migrate deploy"
-sudo -u "$APP_USER" env HOME="$APP_HOME" bash -lc "cd '$APP_DIR' && npx prisma db seed" || true
+# Значение по умолчанию и запись в файл, если строки не было (или пусто вручную)
+DATABASE_URL="${DATABASE_URL:-file:${DATA_DIR}/prod.db}"
+export DATABASE_URL
+if ! grep -qE '^DATABASE_URL=' "$ENV_FILE" 2>/dev/null; then
+  echo "DATABASE_URL=$DATABASE_URL" >>"$ENV_FILE"
+elif grep -qE '^DATABASE_URL=$' "$ENV_FILE" 2>/dev/null; then
+  sed -i "s|^DATABASE_URL=.*|DATABASE_URL=$DATABASE_URL|" "$ENV_FILE"
+fi
+
+# sudo сбрасывает окружение родителя — без явного DATABASE_URL Prisma выдаёт P1012
+sudo -u "$APP_USER" env HOME="$APP_HOME" "DATABASE_URL=$DATABASE_URL" bash -lc "cd '$APP_DIR' && npx prisma migrate deploy"
+sudo -u "$APP_USER" env HOME="$APP_HOME" "DATABASE_URL=$DATABASE_URL" bash -lc "cd '$APP_DIR' && npx prisma db seed" || true
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ ! -f "$SCRIPT_DIR/sharescription.service" ]]; then
