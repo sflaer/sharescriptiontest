@@ -1,4 +1,5 @@
-const base = import.meta.env.VITE_API_URL ?? "";
+/** Без слэша в конце. Пусто = относительные пути /api (прокси Vite → localhost:3001). */
+export const apiBase = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 export type Me = {
   id: string;
@@ -30,22 +31,52 @@ function authHeaders(initData: string): HeadersInit {
   };
 }
 
+function looksLikeHtml(text: string, contentType: string | null): boolean {
+  if (contentType?.includes("text/html")) return true;
+  return /^\s*</.test(text);
+}
+
 async function parseJson<T>(r: Response): Promise<T> {
   const text = await r.text();
+  const ct = r.headers.get("content-type");
+
+  if (looksLikeHtml(text, ct)) {
+    throw new Error(
+      [
+        "Сервер вернул HTML вместо JSON — запрос не дошёл до API.",
+        "Локально: в одном терминале в корне проекта npm run dev (порт 3001), в другом cd web && npm run dev.",
+        "На Vercel: в настройках проекта задайте переменную VITE_API_URL = https://ваш-бэкенд (HTTPS, без / в конце) и пересоберите.",
+      ].join(" "),
+    );
+  }
+
   if (!r.ok) {
     try {
       const j = JSON.parse(text) as { error?: string };
-      throw new Error(j.error ?? r.statusText);
-    } catch {
-      throw new Error(text || r.statusText);
+      throw new Error(j.error ?? `HTTP ${r.status}`);
+    } catch (e) {
+      if (e instanceof Error && !(e instanceof SyntaxError)) throw e;
+      throw new Error(
+        text ? text.slice(0, 280) : `HTTP ${r.status} ${r.statusText}`,
+      );
     }
   }
+
   if (!text) return {} as T;
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error("Ответ сервера не JSON.");
+  }
+}
+
+function apiUrl(path: string): string {
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return `${apiBase}${p}`;
 }
 
 export async function apiGetMe(initData: string): Promise<Me> {
-  const r = await fetch(`${base}/api/me`, { headers: authHeaders(initData) });
+  const r = await fetch(apiUrl("/api/me"), { headers: authHeaders(initData) });
   return parseJson<Me>(r);
 }
 
@@ -53,7 +84,7 @@ export async function apiPatchMe(
   initData: string,
   body: { timezone: string },
 ): Promise<Me> {
-  const r = await fetch(`${base}/api/me`, {
+  const r = await fetch(apiUrl("/api/me"), {
     method: "PATCH",
     headers: authHeaders(initData),
     body: JSON.stringify(body),
@@ -65,7 +96,7 @@ export async function apiGetCategories(initData: string): Promise<{
   system: { id: string; slug: string | null; name: string }[];
   custom: { id: string; name: string }[];
 }> {
-  const r = await fetch(`${base}/api/categories`, {
+  const r = await fetch(apiUrl("/api/categories"), {
     headers: authHeaders(initData),
   });
   return parseJson(r);
@@ -75,7 +106,7 @@ export async function apiCreateCategory(
   initData: string,
   name: string,
 ): Promise<{ id: string; name: string }> {
-  const r = await fetch(`${base}/api/categories`, {
+  const r = await fetch(apiUrl("/api/categories"), {
     method: "POST",
     headers: authHeaders(initData),
     body: JSON.stringify({ name }),
@@ -87,7 +118,7 @@ export async function apiDeleteCategory(
   initData: string,
   id: string,
 ): Promise<void> {
-  const r = await fetch(`${base}/api/categories/${id}`, {
+  const r = await fetch(apiUrl(`/api/categories/${id}`), {
     method: "DELETE",
     headers: authHeaders(initData),
   });
@@ -95,7 +126,7 @@ export async function apiDeleteCategory(
 }
 
 export async function apiGetCards(initData: string): Promise<PaymentCardDto[]> {
-  const r = await fetch(`${base}/api/payment-cards`, {
+  const r = await fetch(apiUrl("/api/payment-cards"), {
     headers: authHeaders(initData),
   });
   return parseJson(r);
@@ -105,7 +136,7 @@ export async function apiCreateCard(
   initData: string,
   body: { name: string; color: string },
 ): Promise<PaymentCardDto> {
-  const r = await fetch(`${base}/api/payment-cards`, {
+  const r = await fetch(apiUrl("/api/payment-cards"), {
     method: "POST",
     headers: authHeaders(initData),
     body: JSON.stringify(body),
@@ -117,7 +148,7 @@ export async function apiCreateSubscription(
   initData: string,
   body: Record<string, unknown>,
 ): Promise<SubscriptionDto> {
-  const r = await fetch(`${base}/api/subscriptions`, {
+  const r = await fetch(apiUrl("/api/subscriptions"), {
     method: "POST",
     headers: authHeaders(initData),
     body: JSON.stringify(body),
@@ -130,7 +161,7 @@ export async function apiPatchSubscription(
   id: string,
   body: Record<string, unknown>,
 ): Promise<SubscriptionDto> {
-  const r = await fetch(`${base}/api/subscriptions/${id}`, {
+  const r = await fetch(apiUrl(`/api/subscriptions/${id}`), {
     method: "PATCH",
     headers: authHeaders(initData),
     body: JSON.stringify(body),
@@ -142,7 +173,7 @@ export async function apiDeleteSubscription(
   initData: string,
   id: string,
 ): Promise<void> {
-  const r = await fetch(`${base}/api/subscriptions/${id}`, {
+  const r = await fetch(apiUrl(`/api/subscriptions/${id}`), {
     method: "DELETE",
     headers: authHeaders(initData),
   });
@@ -153,7 +184,7 @@ export async function apiConfirmPayment(
   initData: string,
   id: string,
 ): Promise<SubscriptionDto> {
-  const r = await fetch(`${base}/api/subscriptions/${id}/confirm-payment`, {
+  const r = await fetch(apiUrl(`/api/subscriptions/${id}/confirm-payment`), {
     method: "POST",
     headers: authHeaders(initData),
   });
@@ -163,7 +194,7 @@ export async function apiConfirmPayment(
 export async function apiGetSubscriptions(
   initData: string,
 ): Promise<SubscriptionDto[]> {
-  const r = await fetch(`${base}/api/subscriptions`, {
+  const r = await fetch(apiUrl("/api/subscriptions"), {
     headers: authHeaders(initData),
   });
   return parseJson(r);
